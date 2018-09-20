@@ -1,0 +1,85 @@
+"""Module containing commonly used functions for querying impala"""
+import os
+
+from impala.dbapi import connect
+from impala.util import as_pandas
+from vluigi.impaladb import ImpalaCommandClient
+
+
+def read_query(file_name):
+    """
+    Reads SQL from SQL.
+    """
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    with open(os.path.join(dir_path, file_name)) as query_file:
+        query = query_file.read()
+
+    return query
+
+
+def write_query(query, file_name):
+    """
+    Writes the sql query taking into account the services requested.
+    """
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    with open(os.path.join(dir_path, file_name), 'w') as query_file:
+        query_file.write(query)
+
+    return os.path.join(dir_path, file_name)
+
+
+class myquery:
+    """
+    Wraps commonly used query functions in an object.
+    """
+    def __init__(self, 
+        initial_query='', 
+        IMPALA_LOAD_BALANCER='impala.emerald.atg.viasat.io', 
+        IMPALA_PORT=21050
+    ):
+        self.query = initial_query
+        self.client = ImpalaCommandClient(
+            host=IMPALA_LOAD_BALANCER,
+            port=IMPALA_PORT
+        )
+
+    def update(self, new_query, **kwargs):
+        """
+        Updates the query with a user-provided query, with kwargs.
+        """
+        self.query = new_query.format(**kwargs)
+
+    def redefine(self, **kwargs):
+        """
+        Imports the query from the initial path with kwargs.
+        """
+        if self.path:
+            self.read(self.path, **kwargs)
+        else:
+            print('No path stored')
+
+    def write(self, path):
+        """
+        Writes the query out to the path.
+        """
+        write_query(self.query, path)
+
+    def read(self, path, **kwargs):
+        """
+        Reads the query from the path provided with kwargs.
+        """
+        self.path = path
+        self.query = read_query(path).format(**kwargs)
+
+    def execute(self, verbose=False):
+        """
+        Executes the query, returning the results as a dataframe.
+        """
+        return self.client.as_pandas(self.query)
+
+    def display(self):
+        """
+        Prints out each line in the query.
+        """
+        for line in self.query.split('\n'):
+            print(line)
